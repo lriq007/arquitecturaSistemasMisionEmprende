@@ -199,11 +199,34 @@ Los temporizadores son parte del comportamiento de la máquina de estados: se ac
 
 ### F7 — Fase 2: Empatía (Bubble Map)
 
-**FR-029** Cada grupo construye un bubble map respondiendo preguntas estructuradas sobre el usuario objetivo del desafío. Las preguntas son parte del desafío configurado por el administrador o están predefinidas en el sistema.
+**Definición canónica del Bubble Map (MVP)**
+
+El Bubble Map tiene **seis burbujas principales obligatorias**, predefinidas por el sistema y comunes a todos los desafíos:
+
+| ID persistido | Dimensión | Pregunta presentada al grupo | Ayuda esperada |
+|---|---|---|---|
+| `emociones` | Emociones | ¿Qué siente? | Emociones, preocupaciones y temores |
+| `gustos` | Gustos | ¿Qué le gusta? | Intereses y preferencias |
+| `entorno` | Entorno | ¿Cómo es su entorno? | Familia, trabajo y comunidad |
+| `necesidades` | Necesidades | ¿Qué necesita? | Necesidades y problemas principales |
+| `limitaciones` | Limitaciones | ¿Qué le limita? | Barreras y dificultades |
+| `motivaciones` | Motivaciones | ¿Qué le motiva? | Metas, deseos y aspiraciones |
+
+Cada respuesta obligatoria debe contener texto no vacío después de eliminar espacios. Su longitud máxima es de 1.000 caracteres.
+
+El mapa incorpora además **tres aportes complementarios opcionales**:
+
+1. `otros`: hasta cuatro hallazgos adicionales, uno por línea; los primeros dos entregan un punto cada uno.
+2. `relato`: relato breve escrito desde la perspectiva de la persona objetivo; entrega un punto.
+3. `link`: enlace de apoyo relacionado con el hallazgo; entrega un punto.
+
+La puntuación se calcula con un punto por cada burbuja principal respondida, hasta dos puntos por `otros`, un punto por `relato` y un punto por `link`, con un máximo de **10 puntos**. El grupo solo puede confirmar la compleción cuando las seis burbujas principales están respondidas; por tanto, un mapa completo obtiene entre 6 y 10 puntos, y la recompensa equivale a su puntuación. Los aportes opcionales no impiden completar el mapa.
+
+**FR-029** Cada grupo construye el Bubble Map respondiendo las seis preguntas principales predefinidas sobre el usuario objetivo del desafío y, si lo desea, añade los aportes complementarios definidos anteriormente. La configuración de preguntas diferentes por desafío queda fuera del alcance del MVP.
 
 **FR-030** Las respuestas del bubble map se persisten por grupo. El grupo puede editar sus respuestas mientras la sesión está en `fase2` y el temporizador no ha expirado.
 
-**FR-031** Al completar el bubble map (todas las burbujas obligatorias llenas), el grupo recibe una recompensa de tokens. La entrega es idempotente.
+**FR-031** Al completar el Bubble Map (las seis burbujas principales llenas), el grupo recibe entre 6 y 10 tokens conforme a la puntuación definida anteriormente. La entrega es idempotente.
 
 **FR-032** El profesor puede ver el estado de avance del bubble map de cada grupo (completo / en progreso / sin iniciar).
 

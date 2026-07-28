@@ -246,7 +246,7 @@ para que mi grupo pueda participar en las actividades del juego con una identida
 
 ### Historia 1.2: Protección contra Fuerza Bruta en Acceso de Grupos
 
-Como el sistema,
+Como el administrador del sistema,
 quiero limitar los intentos fallidos de ingreso con código de grupo a un máximo de 5 por IP en una ventana de 5 minutos,
 para que las sesiones estén protegidas contra ataques de fuerza bruta sobre los códigos de acceso.
 
@@ -594,6 +594,10 @@ para que mi grupo pueda desarrollar y refinar su análisis de empatía durante e
 
 **Criterios de Aceptación:**
 
+**Dado** que el grupo abre el Bubble Map
+**Entonces** el sistema presenta exactamente seis preguntas obligatorias: «¿Qué siente?», «¿Qué le gusta?», «¿Cómo es su entorno?», «¿Qué necesita?», «¿Qué le limita?» y «¿Qué le motiva?»
+**Y** presenta como opcionales hasta cuatro hallazgos adicionales, un relato breve y un enlace de apoyo
+
 **Dado** que la sesión está en estado `fase2` y el temporizador no ha expirado
 **Cuando** el grupo envía o actualiza la respuesta de una burbuja del bubble map
 **Entonces** el sistema persiste la respuesta asociada a ese grupo y esa burbuja
@@ -606,8 +610,14 @@ para que mi grupo pueda desarrollar y refinar su análisis de empatía durante e
 **Dado** que el grupo completa todas las burbujas obligatorias del bubble map
 **Cuando** envía la confirmación de compleción
 **Entonces** el sistema registra el bubble map como completo para ese grupo
-**Y** entrega la recompensa de tokens configurada (idempotente: ejecutar N veces produce el mismo resultado)
+**Y** calcula un punto por cada una de las seis respuestas obligatorias, hasta dos puntos por hallazgos adicionales, un punto por el relato y un punto por el enlace
+**Y** entrega como recompensa el puntaje obtenido, entre 6 y 10 tokens (idempotente: ejecutar N veces produce el mismo resultado)
 **Y** retorna `{ ok: true, completo: true, tokensAcumulados: N }`
+
+**Dado** que falta al menos una de las seis respuestas obligatorias
+**Cuando** el grupo intenta confirmar la compleción
+**Entonces** el sistema no marca el Bubble Map como completo ni entrega tokens
+**Y** retorna 400 con `{ ok: false, codigo: "BUBBLE_INCOMPLETO", error: "Completa las seis preguntas obligatorias" }`
 
 ---
 
@@ -687,7 +697,7 @@ para que mi grupo reciba el reconocimiento por completar la actividad de constru
 
 ### Historia 5.3: Procesamiento Asíncrono de Fotos LEGO con Manejo de Fallos
 
-Como el sistema,
+Como el administrador del sistema,
 quiero procesar las fotografías LEGO de forma asíncrona (miniatura, validación de formato y tamaño) sin bloquear al grupo, y enrutar los fallos a una DLQ para revisión manual,
 para que un error de procesamiento no deje al grupo en estado inválido ni pierda la foto original.
 
@@ -775,7 +785,7 @@ para que la evaluación sea estructurada, orientada por criterios claros y el si
 
 ### Historia 6.3: Cálculo de Puntaje Ponderado al Cerrar el Turno
 
-Como el sistema,
+Como profesor,
 quiero calcular y persistir el puntaje de evaluación ponderado de cada grupo presentador al cerrar su turno, con peso 2× para la evaluación del profesor,
 para que el resultado final del pitch sea objetivo, consistente y no manipulable por ningún actor.
 
@@ -873,7 +883,7 @@ para que el sistema sea desplegable de forma reproducible y el frontend sea acce
 
 ### Historia 7.2: Seguridad Hardened — CORS, Secretos y Concurrencia Reservada
 
-Como el sistema en producción,
+Como el administrador del sistema,
 quiero que la configuración de seguridad esté endurecida — CORS restringido al dominio CloudFront, sin secretos en código, y concurrencia reservada por Lambda —
 para que el sistema cumpla los requisitos de seguridad y resiliencia en producción real.
 
@@ -941,3 +951,80 @@ para que el proceso de despliegue sea reproducible, auditable y listo para activ
 **Cuando** todas las verificaciones pasan y hay aprobación
 **Entonces** el despliegue actualiza solo los recursos que cambiaron (SAM change sets)
 **Y** ningún paso del proceso requiere acceso manual a la consola AWS
+
+---
+
+### Historia 7.5: Resiliencia y Pruebas de Caos en Puntos de Integración
+
+Como el administrador del sistema,
+quiero que cada punto de integración con servicios externos (S3 y Cognito) tenga retry con backoff exponencial, un circuit breaker activo y un caso de prueba de caos documentado que valide la respuesta de degradación,
+para que un fallo temporal o total en un servicio externo no deje a los grupos en estado inválido ni interrumpa la sesión de clase en curso.
+
+**Criterios de Aceptación:**
+
+**Dado** que cualquier Lambda llama al SDK AWS (DynamoDB, S3, SQS, Secrets Manager)
+**Cuando** una llamada falla con un error transitorio
+**Entonces** el cliente SDK reintenta automáticamente con backoff exponencial y jitter (`maxAttempts: 3`) configurado en la instancia del cliente, no en cada llamada
+**Y** el número máximo de intentos y la estrategia de backoff están documentados en el módulo `compartido/baseDatos.ts` y en los repositorios de S3
+
+**Dado** que la Lambda de Fase 3 llama a S3 para verificar existencia de objeto (confirmación de foto)
+**Cuando** S3 no responde dentro del timeout configurado (`timeoutMs` explícito en el cliente S3)
+**Entonces** la Lambda retorna 503 con `{ ok: false, codigo: "SERVICIO_NO_DISPONIBLE", error: "El servicio de almacenamiento no está disponible. Intente más tarde." }`
+**Y** el grupo no queda con estado inconsistente (la foto se considera no confirmada y puede reintentar el flujo completo)
+**Y** el circuit breaker registra el fallo y reduce la ventana de reintentos en fallos consecutivos
+
+**Dado** que la Lambda de autenticación de profesor llama a Cognito para validar credenciales
+**Cuando** Cognito no responde dentro del timeout configurado
+**Entonces** la Lambda retorna 503 con `{ ok: false, codigo: "AUTENTICACION_NO_DISPONIBLE", error: "El servicio de autenticación no está disponible. Intente más tarde." }`
+**Y** el circuit breaker no permite intentos adicionales a Cognito durante la ventana de recuperación configurada
+
+**Dado** que existe un documento de casos de prueba de caos en el repositorio (`docs/pruebas-caos.md`)
+**Cuando** se ejecutan las pruebas de caos manualmente antes de un despliegue a producción
+**Entonces** el documento describe para cada punto de integración (S3 confirmación de foto, Cognito autenticación): el método de inyección de fallo (mock del SDK, timeout forzado o bloqueo de red), la respuesta de degradación esperada (código HTTP y body), y el paso de verificación que confirma que el grupo puede seguir operando
+
+**Dado** que el sistema es educativo y no cuenta con AWS Fault Injection Simulator
+**Cuando** se realiza la prueba de caos de S3
+**Entonces** se acepta simular el fallo inyectando un repositorio falso que lanza un error de timeout en el test de integración del módulo `fase3`
+**Y** el test verifica que `servicio.ts` captura el error y devuelve la respuesta de degradación correcta sin exponer el error interno al cliente
+
+**NFRs cubiertos:** NFR-006, NFR-007, NFR-009
+
+---
+
+### Historia 7.6: Prueba de Carga con k6 o Artillery
+
+Como el equipo de desarrollo,
+quiero ejecutar un escenario de carga automatizado que simule 10 grupos activos en 3 sesiones simultáneas (30 usuarios virtuales) contra los endpoints críticos del juego,
+para que podamos verificar que el P95 de latencia es ≤ 500 ms y que DynamoDB en modo On-Demand absorbe el pico sin degradación, antes del primer despliegue a producción.
+
+**Criterios de Aceptación:**
+
+**Dado** que el sistema está desplegado en el entorno `dev` con datos de sesión precargados (3 sesiones con 10 grupos cada una)
+**Cuando** se ejecuta el script de carga (`pruebas-carga/escenario-sesion-completa.js` en k6 o `pruebas-carga/escenario-sesion-completa.yml` en Artillery)
+**Entonces** el escenario ejecuta en paralelo los siguientes flujos de usuario virtual durante 5 minutos sostenidos:
+- Grupo: POST `/api/acceso/ingresar` (autenticación)
+- Grupo en fase1: POST `/api/fase1/palabra` (enviar palabra encontrada)
+- Grupo: GET `/api/sesiones/{sesionId}/estado` (polling de estado, cada 3 segundos)
+- Profesor: GET `/api/fase1/progreso` (vista de progreso)
+
+**Dado** que el escenario de carga terminó su ejecución
+**Cuando** se analizan los resultados
+**Entonces** el P95 de latencia de respuesta de todos los endpoints críticos es ≤ 500 ms
+**Y** la tasa de errores HTTP (4xx inesperados + 5xx) es < 1%
+**Y** ninguna Lambda de fase activa alcanza su límite de `ReservedConcurrentExecutions` (medible en CloudWatch `ConcurrentExecutions`)
+
+**Dado** que el sistema usa DynamoDB en modo On-Demand
+**Cuando** se ejecuta el escenario de carga de 30 usuarios virtuales simultáneos
+**Entonces** no se observan errores `ProvisionedThroughputExceededException` en los logs de CloudWatch
+**Y** la latencia P99 de DynamoDB (métrica `SuccessfulRequestLatency` en CloudWatch) permanece por debajo de 20 ms durante todo el escenario
+
+**Dado** que alguna Lambda crítica (fase1, acceso) registra cold starts durante la prueba
+**Cuando** el P95 de cold start supera 800 ms
+**Entonces** la historia documenta la necesidad de habilitar Provisioned Concurrency para esa función en `template.yaml` (con el número de instancias mínimas calculado a partir de los resultados)
+**Y** se crea una tarea de seguimiento antes del despliegue a `prod`
+
+**Dado** que el script de carga está en el repositorio en `pruebas-carga/`
+**Cuando** un desarrollador quiere replicar la prueba
+**Entonces** el README del directorio documenta: cómo instalar k6 (o Artillery), cómo precargar los datos de sesión de prueba, el comando exacto de ejecución, y cómo interpretar el reporte de resultados
+
+**NFRs cubiertos:** NFR-001, NFR-002, NFR-003, NFR-008
