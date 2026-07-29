@@ -23,11 +23,13 @@ export async function manejador(
     const metodo = event.requestContext.http.method;
 
     if (ruta === "/api/acceso/ingresar" && metodo === "POST") {
+      const ip = event.requestContext.http.sourceIp || "desconocida";
       const cuerpo = leerJson<CuerpoIngreso>(event);
 
       const resultado = await ingresarConCodigo(
         cuerpo.codigo || "",
         cuerpo.nombreGrupo || "",
+        ip,
         repositorioAcceso,
       );
 

@@ -2,10 +2,8 @@ import {
   BatchWriteCommand,
   GetCommand,
   QueryCommand,
-  ScanCommand,
   UpdateCommand,
   type BatchWriteCommandInput,
-
 } from "@aws-sdk/lib-dynamodb";
 
 import {
@@ -37,6 +35,7 @@ export interface SesionResumen {
   fechaCreacion: string;
   totalGrupos: number;
   totalAlumnos: number;
+  profesorId: string;
 }
 
 export interface RepositorioProfesor {
@@ -50,7 +49,7 @@ export interface RepositorioProfesor {
   ): Promise<void>;
 
   listarSesiones(
-    correoProfesor?: string,
+    profesorId: string,
   ): Promise<SesionResumen[]>;
 
   obtenerSesion(
@@ -143,6 +142,7 @@ function convertirSesion(
     fechaCreacion: String(item.fechaCreacion || ""),
     totalGrupos: Number(item.totalGrupos || 0),
     totalAlumnos: Number(item.totalAlumnos || 0),
+    profesorId: String(item.profesorId || ""),
   };
 }
 
@@ -174,43 +174,17 @@ export const repositorioProfesor: RepositorioProfesor = {
   },
 
   async listarSesiones(
-    correoProfesor?: string,
+    profesorId: string,
   ): Promise<SesionResumen[]> {
-    if (correoProfesor) {
-      const resultado = await baseDatos.send(
-        new QueryCommand({
-          TableName: nombreTabla(),
-          IndexName: "GSI1",
-          KeyConditionExpression: "GSI1PK = :pk",
-          ExpressionAttributeValues: {
-            ":pk": `PROFESOR#${correoProfesor}`,
-          },
-          ScanIndexForward: false,
-        }),
-      );
-
-      const items = (resultado.Items ?? []) as Array<
-        Record<string, unknown>
-      >;
-
-      return items
-        .filter((item) => item.tipo === "SESION")
-        .map((item) => convertirSesion(item))
-        .sort((a, b) =>
-          b.fechaCreacion.localeCompare(a.fechaCreacion),
-        );
-    }
-
     const resultado = await baseDatos.send(
-      new ScanCommand({
+      new QueryCommand({
         TableName: nombreTabla(),
-        FilterExpression: "#tipo = :tipo",
-        ExpressionAttributeNames: {
-          "#tipo": "tipo",
-        },
+        IndexName: "GSI1",
+        KeyConditionExpression: "GSI1PK = :pk",
         ExpressionAttributeValues: {
-          ":tipo": "SESION",
+          ":pk": `PROFESOR#${profesorId}`,
         },
+        ScanIndexForward: false,
       }),
     );
 
@@ -219,6 +193,7 @@ export const repositorioProfesor: RepositorioProfesor = {
     >;
 
     return items
+      .filter((item) => item.tipo === "SESION")
       .map((item) => convertirSesion(item))
       .sort((a, b) =>
         b.fechaCreacion.localeCompare(a.fechaCreacion),

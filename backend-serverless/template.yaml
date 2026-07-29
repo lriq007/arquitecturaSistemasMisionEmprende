@@ -27,6 +27,24 @@ Parameters:
     Default: profe123
     Description: Clave temporal de acceso del profesor.
 
+  ProfesorId:
+    Type: String
+    NoEcho: true
+    Default: profesor-principal
+    Description: Identificador estable del profesor para aislar sus sesiones.
+
+  ClaveAccesoAdmin:
+    Type: String
+    NoEcho: true
+    Default: admin123
+    Description: Clave temporal de acceso del administrador.
+
+  AdminId:
+    Type: String
+    NoEcho: true
+    Default: admin-principal
+    Description: Identificador estable del administrador.
+
 Globals:
   Function:
     Runtime: nodejs22.x
@@ -39,6 +57,9 @@ Globals:
         NOMBRE_TABLA: !Ref TablaMision
         CLAVE_TOKEN: !Ref ClaveToken
         CLAVE_ACCESO_PROFESOR: !Ref ClaveAccesoProfesor
+        PROFESOR_ID: !Ref ProfesorId
+        CLAVE_ACCESO_ADMIN: !Ref ClaveAccesoAdmin
+        ADMIN_ID: !Ref AdminId
         DURACION_TOKEN_SEGUNDOS: "28800"
         ORIGEN_CORS: !Ref OrigenCors
         ENTORNO: !Ref Entorno
@@ -94,6 +115,9 @@ Resources:
         PointInTimeRecoveryEnabled: false
       SSESpecification:
         SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
       Tags:
         - Key: Proyecto
           Value: MisionEmprendeUDD
@@ -167,6 +191,37 @@ Resources:
       BuildProperties:
         EntryPoints:
           - src/profesor/api.ts
+        Bundle: true
+        Minify: false
+        Sourcemap: true
+        Target: es2022
+        Platform: node
+        Format: cjs
+
+  FuncionAdmin:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/admin/api.manejador
+      Role: arn:aws:iam::876388743639:role/LabRole
+      Events:
+        IngresarAdmin:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiBackend
+            Path: /api/admin/ingresar
+            Method: POST
+        PerfilAdmin:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiBackend
+            Path: /api/admin/perfil
+            Method: GET
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+          - src/admin/api.ts
         Bundle: true
         Minify: false
         Sourcemap: true

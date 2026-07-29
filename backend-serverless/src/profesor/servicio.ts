@@ -10,6 +10,10 @@ import {
 import {
   crearTokenProfesor,
 } from "../compartido/seguridad.js";
+import {
+  FASES_ORDEN,
+  TIEMPOS_POR_FASE,
+} from "../compartido/maquinaEstados.js";
 import type {
   AlumnoEntrada,
   ItemDynamo,
@@ -39,59 +43,6 @@ export type AccionSesion =
   | "reiniciar_timer"
   | "timer_10";
 
-const FASES_ORDEN = [
-  "f1_bienvenida",
-  "f1_conocidos",
-  "f1_pre_sopa",
-  "f1_sopa",
-  "f1_ranking",
-  "mapa_f2_empatia",
-  "f2_transicion",
-  "f2_tematicas",
-  "f2_transicion_empatia",
-  "f2_bubblemap",
-  "f2_ranking",
-  "mapa_f3_creatividad",
-  "f3_transicion_creatividad",
-  "f3_lego",
-  "f3_ranking",
-  "mapa_f4_final",
-  "f4_transicion_comunicacion",
-  "f4_construccion_pitch",
-  "f4_orden_pitch",
-  "f4_presentacion_pitch",
-  "f5_transicion_apoyo",
-  "f5_evaluacion_pitch",
-  "f6_ranking",
-  "reflexion",
-] as const;
-
-const TIEMPOS_POR_FASE: Record<string, number> = {
-  f1_bienvenida: 0,
-  f1_conocidos: 10,
-  f1_pre_sopa: 0,
-  f1_sopa: 60,
-  f1_ranking: 0,
-  mapa_f2_empatia: 0,
-  f2_transicion: 0,
-  f2_tematicas: 120,
-  f2_transicion_empatia: 0,
-  f2_bubblemap: 60,
-  f2_ranking: 0,
-  mapa_f3_creatividad: 0,
-  f3_transicion_creatividad: 0,
-  f3_lego: 15,
-  f3_ranking: 0,
-  mapa_f4_final: 0,
-  f4_transicion_comunicacion: 0,
-  f4_construccion_pitch: 120,
-  f4_orden_pitch: 0,
-  f4_presentacion_pitch: 90,
-  f5_transicion_apoyo: 0,
-  f5_evaluacion_pitch: 90,
-  f6_ranking: 0,
-  reflexion: 0,
-};
 
 function compararSeguro(
   valorA: string,
@@ -121,10 +72,21 @@ export function ingresarProfesor(codigo: string) {
     );
   }
 
+  const profesorId = process.env.PROFESOR_ID?.trim();
+
+  if (!profesorId) {
+    throw new ErrorAplicacion(
+      "Variable de entorno PROFESOR_ID no configurada",
+      500,
+      "CONFIGURACION_INVALIDA",
+    );
+  }
+
   return {
     ok: true,
-    token: crearTokenProfesor(),
+    token: crearTokenProfesor(profesorId),
     rol: "profesor",
+    profesorId,
   };
 }
 
@@ -212,7 +174,23 @@ function calcularSegundosRestantes(
   return Math.max(restantes, 0);
 }
 
+function verificarPropiedadSesion(
+  sesion: ItemDynamo,
+  profesorId: string,
+): void {
+  const duenio = String(sesion.profesorId || "");
+
+  if (duenio !== profesorId) {
+    throw new ErrorAplicacion(
+      "No tienes acceso a esta sesión",
+      403,
+      "ACCESO_DENEGADO",
+    );
+  }
+}
+
 export async function crearSesiones(
+  profesorId: string,
   entrada: CrearSesionesEntrada,
   repositorio: RepositorioProfesor,
 ) {
@@ -335,14 +313,15 @@ export async function crearSesiones(
       items.push({
         PK: `SESION#${sesionId}`,
         SK: "METADATOS",
-        GSI1PK: `PROFESOR#${correoProfesor}`,
+        GSI1PK: `PROFESOR#${profesorId}`,
         GSI1SK: `SESION#${ahora}#${sesionId}`,
         tipo: "SESION",
         sesionId,
         nombre: nombreSesion,
         correoProfesor,
+        profesorId,
         facultad,
-        fase: "f1_bienvenida",
+        fase: "configuracion",
         totalGrupos: grupos.length,
         totalAlumnos: alumnosSesion.length,
         gruposSopaCompletada: 0,
@@ -417,14 +396,10 @@ export async function crearSesiones(
 }
 
 export async function listarSesionesProfesor(
-  correoProfesor: string | undefined,
+  profesorId: string,
   repositorio: RepositorioProfesor,
 ) {
-  const correo = correoProfesor
-    ? normalizarCorreo(correoProfesor)
-    : undefined;
-
-  const sesiones = await repositorio.listarSesiones(correo);
+  const sesiones = await repositorio.listarSesiones(profesorId);
 
   return {
     ok: true,
@@ -434,6 +409,7 @@ export async function listarSesionesProfesor(
 
 export async function obtenerControlSesion(
   sesionId: string,
+  profesorId: string,
   repositorio: RepositorioProfesor,
 ) {
   const elementos =
@@ -450,6 +426,8 @@ export async function obtenerControlSesion(
       "SESION_NO_ENCONTRADA",
     );
   }
+
+  verificarPropiedadSesion(sesion, profesorId);
 
   const grupos = elementos
     .filter((item) => item.tipo === "GRUPO")
@@ -524,6 +502,7 @@ export async function obtenerControlSesion(
 export async function ejecutarAccionSesion(
   sesionId: string,
   accion: AccionSesion,
+  profesorId: string,
   repositorio: RepositorioProfesor,
 ) {
   const sesion = await repositorio.obtenerSesion(sesionId);
@@ -536,8 +515,10 @@ export async function ejecutarAccionSesion(
     );
   }
 
+  verificarPropiedadSesion(sesion, profesorId);
+
   const faseActual = String(
-    sesion.fase || "f1_bienvenida",
+    sesion.fase || "configuracion",
   );
 
   const indiceActual = FASES_ORDEN.indexOf(
@@ -648,5 +629,5 @@ export async function ejecutarAccionSesion(
     cambios,
   );
 
-  return obtenerControlSesion(sesionId, repositorio);
+  return obtenerControlSesion(sesionId, profesorId, repositorio);
 }

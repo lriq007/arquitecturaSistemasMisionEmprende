@@ -1,0 +1,256 @@
+# generated: 2026-07-28
+# last_updated: 2026-07-28
+# project: PROYECTO-INGENIERIA-DE-SOFTWARE-BMAD
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+#
+# NOTAS DE CRUCE (2026-07-28):
+# ============================
+# Este archivo fue generado cruzando las épicas con el código implementado en backend-serverless/src/.
+# Módulos existentes: acceso/, profesor/, sesiones/, fase1/, fase2/, fase3/, compartido/
+# Módulos ausentes: catalogo/, fase4/
+# Tests existentes: pruebas/fase1.test.ts, fase2.test.ts, fase3.test.ts, profesor.test.ts
+# Deuda técnica activa: profesorId ausente del token (AD-3), FASES_ORDEN inline (viola AD-2),
+#   flujo S3 LEGO no implementado (solo conFoto:true), CORS usa '*' en template.yaml.
+
+generated: 2026-07-28
+last_updated: 2026-07-29 # 1-5 review → done
+project: PROYECTO-INGENIERIA-DE-SOFTWARE-BMAD
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+
+  # ─────────────────────────────────────────────────────────────
+  # ÉPICA 1: Identidad y Acceso Seguro del Sistema
+  # Módulo backend: acceso/, profesor/, compartido/seguridad.ts
+  # ─────────────────────────────────────────────────────────────
+  epic-1: in-progress
+
+  # Implementado: acceso/api.ts + servicio.ts + repositorio.ts
+  # JWT emitido con sesionId y grupoId. Falta: nombreGrupo en token,
+  # código de error es GRUPO_NO_ENCONTRADO (spec pide CODIGO_INVALIDO),
+  # login idempotente no verificado explícitamente.
+  1-1-acceso-de-grupos-codigo-de-sesion-nombre-y-jwt-de-grupo: done
+
+  # No implementado. Sin módulo de rate limiting ni contador por IP en DynamoDB.
+  1-2-proteccion-contra-fuerza-bruta-en-acceso-de-grupos: done
+
+  # Cerrada sin story file (2026-07-28). Núcleo técnico implementado:
+  # crearTokenProfesor(), validarProfesorDesdeEvento(), ContextoProfesor con profesorId.
+  # Gaps documentados en deferred-work.md: login por código vs. correo+contraseña,
+  # profesorId desde env var (no Secrets Manager), mecanismo Cognito bloqueado por entorno.
+  1-3-autenticacion-del-profesor-y-token-de-dominio-con-profesorid: done
+
+  # Historia creada 2026-07-28. Resuelve AD-3: profesorId en token, filtro
+  # GSI1PK=PROFESOR#{profesorId} en listado, verificación de propiedad en
+  # obtenerControlSesion y ejecutarAccionSesion, eliminación del ScanCommand.
+  1-4-aislamiento-de-sesiones-por-profesor-resolucion-deuda-tecnica-ad-3: done
+
+
+  # Story file creado 2026-07-29. Mecanismo de auth admin separado del profesor:
+  # módulo admin/ con ingresarAdmin(), crearTokenAdmin(), validarAdminDesdeEvento().
+  # Sin Cognito (entorno educativo). Token con rol:admin bloquea rutas de profesor y viceversa.
+  1-5-autenticacion-del-administrador: done
+
+  epic-1-retrospective: optional
+
+  # ─────────────────────────────────────────────────────────────
+  # ÉPICA 2: Orquestación de Sesión y Control del Juego
+  # Módulo backend: profesor/, sesiones/
+  # ─────────────────────────────────────────────────────────────
+  epic-2: in-progress
+
+  # Story file creado 2026-07-28. Scope ajustado: crea compartido/maquinaEstados.ts (AD-2),
+  # cambia estado inicial a 'configuracion', refactoriza servicio.ts.
+  # Snapshot temática/desafío diferido a historia 3-2 (requiere módulo catalogo/).
+  2-1-crear-sesion-de-juego-con-grupos-y-codigos-de-acceso: done
+
+  # Implementado parcialmente: listarSesionesProfesor() funciona.
+  # FALTA: endpoint/lógica para ajustar grupos en sesión existente (agregar/eliminar
+  # grupos mientras está en configuracion). Solo existe la creación inicial.
+  2-2-listado-y-ajuste-de-grupos-en-sesiones-del-profesor: in-progress
+
+  # Implementado parcialmente: ejecutarAccionSesion() con siguiente_fase/fase_anterior.
+  # FALTA: compartido/maquinaEstados.ts (FASES_ORDEN está inline),
+  # validación explícita de SESION_CERRADA para acciones de grupos,
+  # estado 'finalizado' no está en FASES_ORDEN actual.
+  2-3-transiciones-de-estado-del-juego-y-cierre-de-sesion: in-progress
+
+  # Implementado correctamente: timerInicio, timerFin, segundosRestantes en DynamoDB.
+  # calcularSegundosRestantes() usa timestamp del servidor. Acciones iniciar/detener/
+  # reiniciar/timer_10 funcionan. Bloqueo por temporizador expirado implementado en
+  # servicio de cada fase.
+  2-4-temporizadores-sincronizados-por-fase: done
+
+  # Implementado parcialmente: GET /api/sesiones/actual para grupos (sesiones/api.ts).
+  # FALTA: endpoint de salud GET /api/salud (verifica DynamoDB).
+  # Vista unificada para profesor (con todos los grupos) no existe como endpoint único.
+  2-5-consulta-del-estado-de-sesion-y-endpoint-de-salud: in-progress
+
+  epic-2-retrospective: optional
+
+  # ─────────────────────────────────────────────────────────────
+  # ÉPICA 3: Catálogo de Temáticas y Desafíos
+  # Módulo backend: catalogo/ (AUSENTE)
+  # ─────────────────────────────────────────────────────────────
+  epic-3: backlog
+
+  # No implementado. No existe módulo catalogo/. Las temáticas están hardcodeadas
+  # en el frontend (fase2/tematicas.html).
+  3-1-gestion-de-tematicas-con-regla-de-3-activas: backlog
+
+  # No implementado. Sin API de desafíos. Sin snapshot en creación de sesión.
+  3-2-gestion-de-desafios-y-snapshot-en-creacion-de-sesion: backlog
+
+  epic-3-retrospective: optional
+
+  # ─────────────────────────────────────────────────────────────
+  # ÉPICA 4: Fase 1 — Sopa de Letras y Fase 2 — Empatía
+  # Módulo backend: fase1/, fase2/
+  # ─────────────────────────────────────────────────────────────
+  epic-4: in-progress
+
+  # Implementado: registrarPalabra() valida lista objetivo, idempotencia con
+  # ConditionExpression, 1 token por palabra. obtenerEstadoFase1() funciona.
+  # Tests en pruebas/fase1.test.ts. Frontend en juego/fase1/sopa-letras.*
+  4-1-tablero-de-sopa-de-letras-y-envio-de-palabras: done
+
+  # Implementado: obtenerEstadoFase1() devuelve palabras encontradas y tokens.
+  # obtenerRankingFase1() funciona. Vista del profesor vía obtenerControlSesion()
+  # en módulo profesor. Tests cubren el comportamiento esperado.
+  4-2-progreso-del-grupo-y-vista-del-profesor-en-fase-1: done
+
+  # Implementado: guardarBubbleMap() y completarBubbleMap() en fase2.
+  # 6 preguntas obligatorias, campos opcionales, recompensa de tokens idempotente.
+  # Bloqueo por timer expirado implementado. Tests en pruebas/fase2.test.ts.
+  # Frontend en juego/fase2/bubblemap.*
+  4-3-bubble-map-de-empatia-construccion-y-persistencia: done
+
+  # Implementado parcialmente: obtenerControlSesion() del módulo profesor devuelve
+  # estado por grupo (completo/en_progreso/sin_iniciar). FALTA: endpoint dedicado
+  # GET /api/fase2/progreso-profesor como lo describe la historia explícitamente.
+  4-4-vista-del-profesor-en-fase-2-estado-del-bubble-map-por-grupo: in-progress
+
+  epic-4-retrospective: optional
+
+  # ─────────────────────────────────────────────────────────────
+  # ÉPICA 5: Fase 3 — Creatividad LEGO (Flujo Completo S3)
+  # Módulo backend: fase3/
+  # ─────────────────────────────────────────────────────────────
+  epic-5: in-progress
+
+  # No implementado el flujo real. No hay bucket S3 en template.yaml para fotos LEGO.
+  # No existe endpoint POST /api/fase3/url-foto.
+  # DEUDA TÉCNICA activa documentada en epics.md.
+  5-1-infraestructura-s3-y-endpoint-de-url-prefirmada-para-fotos-lego: backlog
+
+  # Implementado parcialmente (deuda técnica): completarLego() en fase3/servicio.ts
+  # acepta {conFoto: true} y entrega tokens. NO verifica existencia real del objeto
+  # en S3. No publica mensaje SQS. Solo persiste legoConFoto:true en DynamoDB.
+  5-2-confirmacion-de-foto-y-entrega-de-tokens: in-progress
+
+  # No implementado. No hay Lambda de procesamiento S3, no hay SQS, no hay DLQ
+  # en template.yaml para este flujo.
+  5-3-procesamiento-asincrono-de-fotos-lego-con-manejo-de-fallos: backlog
+
+  epic-5-retrospective: optional
+
+  # ─────────────────────────────────────────────────────────────
+  # ÉPICA 6: Fase 4 — Pitch, Evaluación Cruzada y Ranking Final
+  # Módulo backend: fase4/ (AUSENTE)
+  # ─────────────────────────────────────────────────────────────
+  epic-6: backlog
+
+  # No implementado. No existe módulo fase4/.
+  # Frontend en juego/fase3/lego.html hace referencia a fase4 en navegación
+  # pero no hay backend que lo soporte.
+  6-1-control-de-turno-de-presentacion-por-el-profesor: backlog
+
+  # No implementado. Sin rúbrica, sin evaluación cruzada en el backend.
+  6-2-evaluacion-del-pitch-con-rubrica-de-4-criterios: backlog
+
+  # No implementado. Sin cálculo de puntaje ponderado.
+  6-3-calculo-de-puntaje-ponderado-al-cerrar-el-turno: backlog
+
+  # No implementado. Los rankings de Fase 1, 2 y 3 existen (obtenerRankingFase1/2/3).
+  # FALTA: ranking final acumulativo multi-fase y estados ranking1/2/3 en la
+  # máquina de estados.
+  6-4-rankings-por-fase-y-ranking-final-acumulativo: backlog
+
+  # No implementado.
+  6-5-conversion-de-puntaje-de-evaluacion-a-tokens: backlog
+
+  epic-6-retrospective: optional
+
+  # ─────────────────────────────────────────────────────────────
+  # ÉPICA 7: Sistema Listo para Producción
+  # Infraestructura: backend-serverless/template.yaml
+  # ─────────────────────────────────────────────────────────────
+  epic-7: in-progress
+
+  # Implementado parcialmente: template.yaml define DynamoDB con GSI1, SSE habilitado,
+  # BillingMode PAY_PER_REQUEST. FALTA: distribución CloudFront, bucket S3 frontend,
+  # PointInTimeRecoveryEnabled está en false (spec pide true en prod),
+  # entornos dev/prod comparten OrigenCors='*' por defecto.
+  7-1-infraestructura-sam-completa-cloudfront-s3-frontend-y-pitr: in-progress
+
+  # Implementado parcialmente: CLAVE_TOKEN viene de parámetro SAM (no Secrets Manager),
+  # CLAVE_ACCESO_PROFESOR idem. OrigenCors='*' por defecto (viola NFR-013 en prod).
+  # Sin ReservedConcurrentExecutions en ninguna Lambda. LabRole no está declarado
+  # explícitamente en template.yaml (usa rol por defecto de SAM).
+  7-2-seguridad-hardened-cors-secretos-y-concurrencia-reservada: in-progress
+
+  # No implementado. No hay emisión de logs JSON estructurados desde las Lambdas.
+  # No hay alarmas CloudWatch definidas en template.yaml.
+  7-3-observabilidad-logs-estructurados-y-alarmas-cloudwatch: backlog
+
+  # No implementado. No hay archivo de pipeline CI/CD en el repositorio
+  # (sin .github/workflows/, sin buildspec.yml, sin documento de pasos manuales).
+  7-4-pipeline-cicd-documentado-y-ejecutable-manualmente: backlog
+
+  # No implementado. Sin configuración de retry/backoff explícito en clientes SDK
+  # (más allá del default), sin circuit breaker, sin documento pruebas-caos.md.
+  7-5-resiliencia-y-pruebas-de-caos-en-puntos-de-integracion: backlog
+
+  # No implementado. Sin directorio pruebas-carga/, sin scripts k6/Artillery.
+  7-6-prueba-de-carga-con-k6-o-artillery: backlog
+
+  epic-7-retrospective: optional

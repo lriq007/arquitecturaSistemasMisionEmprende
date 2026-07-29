@@ -6,10 +6,12 @@ import { ErrorAplicacion } from "./respuestas.js";
 export interface ContextoGrupo {
   sesionId: string;
   grupoId: string;
+  nombreGrupo: string;
 }
 
 export interface ContextoProfesor {
   rol: "profesor";
+  profesorId: string;
 }
 
 interface ContenidoTokenGrupo extends ContextoGrupo {
@@ -22,11 +24,25 @@ interface ContenidoTokenProfesor extends ContextoProfesor {
   exp: number;
 }
 
-type ContenidoToken = ContenidoTokenGrupo | ContenidoTokenProfesor;
+export interface ContextoAdmin {
+  rol: "admin";
+  adminId: string;
+}
+
+interface ContenidoTokenAdmin extends ContextoAdmin {
+  tipo: "admin";
+  exp: number;
+}
+
+type ContenidoToken =
+  | ContenidoTokenGrupo
+  | ContenidoTokenProfesor
+  | ContenidoTokenAdmin;
 
 type ContenidoTokenSinExp =
   | Omit<ContenidoTokenGrupo, "exp">
-  | Omit<ContenidoTokenProfesor, "exp">;
+  | Omit<ContenidoTokenProfesor, "exp">
+  | Omit<ContenidoTokenAdmin, "exp">;
 
 function claveToken(): string {
   const clave = process.env.CLAVE_TOKEN;
@@ -75,10 +91,11 @@ export function crearToken(
   });
 }
 
-export function crearTokenProfesor(): string {
+export function crearTokenProfesor(profesorId: string): string {
   return crearTokenBase({
     tipo: "profesor",
     rol: "profesor",
+    profesorId,
   });
 }
 
@@ -152,6 +169,8 @@ export function validarToken(
   return {
     sesionId: contenido.sesionId,
     grupoId: contenido.grupoId,
+    // Tokens emitidos antes de agregar este campo regresan cadena vacía
+    nombreGrupo: (contenido.nombreGrupo as string | undefined) ?? "",
   };
 }
 
@@ -179,6 +198,45 @@ export function contextoDesdeEvento(
   return validarToken(obtenerBearer(event));
 }
 
+export function crearTokenAdmin(adminId: string): string {
+  return crearTokenBase({
+    tipo: "admin",
+    rol: "admin",
+    adminId,
+  });
+}
+
+export function validarAdminDesdeEvento(
+  event: APIGatewayProxyEventV2,
+): ContextoAdmin {
+  const contenido = validarTokenBase(obtenerBearer(event));
+
+  if (contenido.tipo !== "admin") {
+    throw new ErrorAplicacion(
+      "El token no corresponde a un administrador",
+      403,
+      "ROL_INVALIDO",
+    );
+  }
+
+  const adminId = String(
+    (contenido as ContenidoTokenAdmin).adminId || "",
+  );
+
+  if (!adminId) {
+    throw new ErrorAplicacion(
+      "Token sin identidad de administrador",
+      401,
+      "TOKEN_INVALIDO",
+    );
+  }
+
+  return {
+    rol: "admin",
+    adminId,
+  };
+}
+
 export function validarProfesorDesdeEvento(
   event: APIGatewayProxyEventV2,
 ): ContextoProfesor {
@@ -192,7 +250,20 @@ export function validarProfesorDesdeEvento(
     );
   }
 
+  const profesorId = String(
+    (contenido as ContenidoTokenProfesor).profesorId || "",
+  );
+
+  if (!profesorId) {
+    throw new ErrorAplicacion(
+      "Token sin identidad de profesor",
+      401,
+      "TOKEN_INVALIDO",
+    );
+  }
+
   return {
     rol: "profesor",
+    profesorId,
   };
 }

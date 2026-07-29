@@ -54,19 +54,16 @@ export async function manejador(
       );
     }
 
-    validarProfesorDesdeEvento(event);
+    const contextoProfesor = validarProfesorDesdeEvento(event);
 
     if (
       ruta === "/api/profesor/sesiones" &&
       metodo === "GET"
     ) {
-      const correo =
-        event.queryStringParameters?.correo;
-
       return respuestaJson(
         200,
         await listarSesionesProfesor(
-          correo,
+          contextoProfesor.profesorId,
           repositorioProfesor,
         ),
       );
@@ -82,6 +79,7 @@ export async function manejador(
       return respuestaJson(
         201,
         await crearSesiones(
+          contextoProfesor.profesorId,
           entrada,
           repositorioProfesor,
         ),
@@ -99,6 +97,7 @@ export async function manejador(
         200,
         await obtenerControlSesion(
           decodeURIComponent(sesionIdDetalle),
+          contextoProfesor.profesorId,
           repositorioProfesor,
         ),
       );
@@ -118,6 +117,7 @@ export async function manejador(
         await ejecutarAccionSesion(
           decodeURIComponent(sesionIdAccion),
           entrada.accion,
+          contextoProfesor.profesorId,
           repositorioProfesor,
         ),
       );
